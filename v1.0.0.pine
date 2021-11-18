@@ -55,6 +55,7 @@ SHOW_HISTORY = input.string('Yes', 'History', options=['Yes', 'No'], group=g4) =
 // Labels
 bool show_label = input.bool(true, 'Show Labels', group=g6) and SHOW
 RECT_LABELSIZE = input.string(size.normal, 'Size', options=[size.auto, size.tiny, size.small, size.normal, size.large, size.huge], group=g6)
+RECT_LABELSTYLE = input.string('Inside', 'Position', options=['Inside', 'Outside'], group=g6) == "Inside" ? label.style_label_upper_left : label.style_label_lower_left
 
 // Opening Range
 OPRG_LOOKBACKMINS = input.int(30, title='Opening Range Lookback', minval=1, step=1, tooltip='Minutes', group=g5)
@@ -158,7 +159,7 @@ draw_label(is_inSession_, show_, show_extend_, show_history_, left_, top_, col_,
         var label my_label = na
 
         if not is_inSession_[1]
-            my_label := label.new(left_, top_, labeltext_, textcolor=col_, color=NONECOLOR, style=label.style_none, size=RECT_LABELSIZE)
+            my_label := label.new(left_, top_, labeltext_, textcolor=col_, color=NONECOLOR, style=RECT_LABELSTYLE, size=RECT_LABELSIZE)
 
             if not show_history_ or show_extend_ or not SHOW_HISTORY
                 label.delete(my_label[1])
