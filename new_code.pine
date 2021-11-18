@@ -1,0 +1,24 @@
+draw_market (_session) =>
+    var box my_box = na
+    max = 1
+    for i = 1 to LOOKBACKMINS
+        if na(_session[i+1]) and _session[i]
+            max := i
+            break
+
+    top = highest(high, max)
+    bottom = lowest(low, max)
+    
+    if na(_session[1]) and _session
+        my_box := box.new(time, top, time + get_xtime_by_bar(1), bottom, xloc=xloc.bar_time)
+    
+    if _session
+        box.set_right(my_box, time + get_xtime_by_bar(1))
+        box.set_top(my_box, top)
+        box.set_bottom(my_box, bottom)
+    
+    if na(_session) and _session[1]
+        label.new(bar_index, na, "end", yloc=yloc.belowbar)
+
+
+draw_market(sess1)
