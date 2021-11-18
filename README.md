@@ -1,1 +1,1 @@
-# FX-Market-Sessions
+# FX Market Sessions
