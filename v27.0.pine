@@ -70,19 +70,19 @@ i_sess3_op = input.string(NO, 'Opening range', group=g3, options=[YES, NO]) != N
 
 // Show & Styles
 i_sess_border_style = input.string(line.style_dashed, 'Style', options=[line.style_solid, line.style_dotted, line.style_dashed], group=g4)
-i_sess_border_width = input.int(1, 'Width', minval=0, group=g4)
+i_sess_border_width = input.int(1, 'Thickness', minval=0, group=g4)
 i_sess_bgopacity = input.int(94, 'Transp', minval=0, maxval=100, step=1, group=g4, tooltip='Setting the 100 is no background color')
 
 // Labels
-i_label_show = input.bool(true, 'Labels', group=g6) and show
-i_label_size = str.lower(input.string('Normal', 'Size', options=['Auto', 'Tiny', 'Small', 'Normal', 'Large', 'Huge'], group=g6))
+i_label_show = input.bool(true, 'Show labels', inline='label_show', group=g6) and show
+i_label_size = str.lower(input.string('Normal', '', options=['Auto', 'Tiny', 'Small', 'Normal', 'Large', 'Huge'], inline='label_show', group=g6))
 i_label_position_y = str.lower(input.string('Top', 'Position', options=['Top', 'Bottom'], inline='label_position', group=g6))
 i_label_position_s = str.lower(input.string('Outside', '', options=['Inside', 'Outside'], inline='label_position', group=g6))
 i_label_chg = input.string(NO, "Change value", options=[NO, YES_PRICE, YES_PIPS], group=g6)
 
 // Fibonacci levels
 i_f_linestyle = input.string(line.style_solid, title="Style", options=[line.style_solid, line.style_dotted, line.style_dashed], group=g7)
-i_f_linewidth = input.int(1, title="Width", minval=1, group=g7)
+i_f_linewidth = input.int(1, title="Thickness", minval=1, group=g7)
 
 // Opening range
 i_o_minutes = input.int(15, title='Periods (minutes)', minval=1, step=1, group=g5)
@@ -92,6 +92,7 @@ i_o_transp = input.int(88, title='Transp', minval=0, maxval=100, step=1, group=g
 // Alerts
 i_alert1_show = input.bool(false, 'Alerts - Sessions stard/end', group='Alerts visualized')
 i_alert2_show = input.bool(false, 'Alerts - Opening range breakouts', group='Alerts visualized')
+i_alert3_show = input.bool(false, 'Alerts - Price crossed session\'s High/Low after session closed', group='Alerts visualized')
 
 
 // Variables
@@ -253,6 +254,8 @@ draw_market (_show, _session, _is_started, _is_ended, _color, _top, _bottom, _ex
     x0_2 = ta.valuewhen(na(_session) and _session[1], bar_index, 0)
     var x1 = 0
     var x2 = 0
+    var v_session_high = 0.0
+    var v_session_low = 0.0
 
     if _show
         if _is_started
@@ -263,6 +266,9 @@ draw_market (_show, _session, _is_started, _is_ended, _color, _top, _bottom, _ex
             box.set_border_width(my_box, i_sess_border_width)
             box.set_border_color(my_box, _color)
             box.set_bgcolor(my_box, color.new(_color, i_sess_bgopacity))
+            
+            v_session_high := _top
+            v_session_low := _bottom
 
             if _is_extend
                 box.set_extend(my_box, extend.right)
@@ -272,14 +278,17 @@ draw_market (_show, _session, _is_started, _is_ended, _color, _top, _bottom, _ex
                 box.delete(my_box[1])
     
         // Proccesing
-        if _session
+        else if _session
             box.set_top(my_box, _top)
             box.set_bottom(my_box, _bottom)
+
+            v_session_high := _top
+            v_session_low  := _bottom
         
-        if _is_ended
+        else if _is_ended
             box.set_right(my_box, bar_index)
 
-    [x1, x2]
+    [x1, x2, v_session_high, v_session_low]
 
 // ------------------------
 // Drawing
@@ -300,7 +309,7 @@ draw (_show, _session, _color, _label, _extend, _show_fib, _show_op, _lookback) 
 
     delete_history = (not i_show_history) or is_extend
 
-    [x1, x2] = draw_market(_show, _session, is_started, is_ended, _color, top, bottom, _extend, is_extend, delete_history)
+    [x1, x2, _high, _low] = draw_market(_show, _session, is_started, is_ended, _color, top, bottom, _extend, is_extend, delete_history)
     
     if i_label_show
         draw_label(_show, _session, is_started, _color, top, bottom, _label, delete_history)
@@ -313,7 +322,7 @@ draw (_show, _session, _color, _label, _extend, _show_fib, _show_op, _lookback) 
         draw_fib(_show, _session, is_started, x1, x2, _color, top, bottom, 0.628, i_f_linewidth, i_f_linestyle, is_extend, delete_history)
         draw_fib(_show, _session, is_started, x1, x2, _color, top, bottom, 0.382, i_f_linewidth, i_f_linestyle, is_extend, delete_history)
 
-    _session
+    [_session, _high, _low]
 
 ///////////////////
 // Calculating
@@ -326,9 +335,9 @@ int sess3 = time(timeframe.period, i_sess3, tz)
 ///////////////////
 // Plotting
 ///////////////////
-is_sess1 = draw(i_show_sess1, sess1, i_sess1_color, i_sess1_label, i_sess1_extend, i_sess1_fib, i_sess1_op, lookback)
-is_sess2 = draw(i_show_sess2, sess2, i_sess2_color, i_sess2_label, i_sess2_extend, i_sess2_fib, i_sess2_op, lookback)
-is_sess3 = draw(i_show_sess3, sess3, i_sess3_color, i_sess3_label, i_sess3_extend, i_sess3_fib, i_sess3_op, lookback)
+[is_sess1, sess1_high, sess1_low] = draw(i_show_sess1, sess1, i_sess1_color, i_sess1_label, i_sess1_extend, i_sess1_fib, i_sess1_op, lookback)
+[is_sess2, sess2_high, sess2_low] = draw(i_show_sess2, sess2, i_sess2_color, i_sess2_label, i_sess2_extend, i_sess2_fib, i_sess2_op, lookback)
+[is_sess3, sess3_high, sess3_low] = draw(i_show_sess3, sess3, i_sess3_color, i_sess3_label, i_sess3_extend, i_sess3_fib, i_sess3_op, lookback)
 
 
 ////////////////////
@@ -342,12 +351,19 @@ bool sess2_ended = not is_sess2 and is_sess2[1]
 bool sess3_started = is_sess3 and not is_sess3[1]
 bool sess3_ended = not is_sess3 and is_sess3[1]
 
-alertcondition(sess1_started, 'Session #1 started')
-alertcondition(sess1_ended, 'Session #1 ended')
-alertcondition(sess2_started, 'Session #2 started')
-alertcondition(sess2_ended, 'Session #2 ended')
-alertcondition(sess3_started, 'Session #3 started')
-alertcondition(sess3_ended, 'Session #3 ended')
+alertcondition(sess1_started,   'Session #1 started')
+alertcondition(sess1_ended,     'Session #1 ended')
+alertcondition(sess2_started,   'Session #2 started')
+alertcondition(sess2_ended,     'Session #2 ended')
+alertcondition(sess3_started,   'Session #3 started')
+alertcondition(sess3_ended,     'Session #3 ended')
+
+alertcondition((not is_sess1) and ta.crossover(close, sess1_high), 'Session #1 High crossed (after session closed)')
+alertcondition((not is_sess1) and ta.crossunder(close, sess1_low), 'Session #1 Low crossed (after session closed)')
+alertcondition((not is_sess2) and ta.crossover(close, sess2_high), 'Session #2 High crossed (after session closed)')
+alertcondition((not is_sess2) and ta.crossunder(close, sess2_low), 'Session #2 Low crossed (after session closed)')
+alertcondition((not is_sess3) and ta.crossover(close, sess3_high), 'Session #3 High crossed (after session closed)')
+alertcondition((not is_sess3) and ta.crossunder(close, sess3_low), 'Session #3 Low crossed (after session closed)')
 
 plotshape(i_alert1_show and sess1_started, color=i_sess1_color, text='Start', style=shape.labeldown, location=location.bottom, size=size.small, textcolor=color.new(color.white, 0))
 plotshape(i_alert1_show and sess1_ended, color=i_sess1_color, text='End', style=shape.labeldown, location=location.bottom, size=size.small, textcolor=color.new(color.white, 0))
@@ -355,4 +371,17 @@ plotshape(i_alert1_show and sess2_started, color=i_sess2_color, text='Start', st
 plotshape(i_alert1_show and sess2_ended, color=i_sess2_color, text='End', style=shape.labeldown, location=location.bottom, size=size.small, textcolor=color.new(color.white, 0))
 plotshape(i_alert1_show and sess3_started, color=i_sess3_color, text='Start', style=shape.labeldown, location=location.bottom, size=size.small, textcolor=color.new(color.white, 0))
 plotshape(i_alert1_show and sess3_ended, color=i_sess3_color, text='End', style=shape.labeldown, location=location.bottom, size=size.small, textcolor=color.new(color.white, 0))
-    
+
+plot(i_alert3_show ? sess1_high : na, style=plot.style_linebr, color=i_sess1_color)
+plot(i_alert3_show ? sess1_low : na, style=plot.style_linebr, linewidth=2, color=i_sess1_color)
+plot(i_alert3_show ? sess2_high : na, style=plot.style_linebr, color=i_sess2_color)
+plot(i_alert3_show ? sess2_low : na, style=plot.style_linebr, linewidth=2, color=i_sess2_color)
+plot(i_alert3_show ? sess3_high : na, style=plot.style_linebr, color=i_sess3_color)
+plot(i_alert3_show ? sess3_low : na, style=plot.style_linebr, linewidth=2, color=i_sess3_color)
+
+plotshape(i_alert3_show and (not is_sess1) and ta.crossover(close, sess1_high), color=i_sess1_color, title="", style=shape.triangleup, location=location.bottom, size=size.tiny)
+plotshape(i_alert3_show and (not is_sess1) and ta.crossunder(close, sess1_low), color=i_sess1_color, title="", style=shape.triangledown, location=location.bottom, size=size.tiny)
+plotshape(i_alert3_show and (not is_sess2) and ta.crossover(close, sess2_high), color=i_sess2_color, title="", style=shape.triangleup, location=location.bottom, size=size.tiny)
+plotshape(i_alert3_show and (not is_sess2) and ta.crossunder(close, sess2_low), color=i_sess2_color, title="", style=shape.triangledown, location=location.bottom, size=size.tiny)
+plotshape(i_alert3_show and (not is_sess3) and ta.crossover(close, sess3_high), color=i_sess3_color, title="", style=shape.triangleup, location=location.bottom, size=size.tiny)
+plotshape(i_alert3_show and (not is_sess3) and ta.crossunder(close, sess3_low), color=i_sess3_color, title="", style=shape.triangledown, location=location.bottom, size=size.tiny)
