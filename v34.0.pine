@@ -1,0 +1,448 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © boitoki
+
+//@version=5
+indicator('FX Market Sessions', overlay=true, max_boxes_count=500, max_labels_count=500, max_lines_count=500, max_bars_back=1000)
+
+import boitoki/AwesomeColor/4 as ac
+
+///////////////
+// Groups
+///////////////
+g0  = '𐋉𐊤𐑿𐊤𐊯𐋎𐑖Ⴝ'
+g1  = '♯1 Ⴝ𐊤ႽႽ𐊦Θ𐑿'
+g2  = '♯2 Ⴝ𐊤ႽႽ𐊦Θ𐑿'
+g3  = '♯3 Ⴝ𐊤ႽႽ𐊦Θ𐑿'
+g4  = '𐌱Θ𐋂'
+g6  = '𐑖𐋎𐌱𐊤𐑖Ⴝ'
+g5  = 'ΘϷ𐊤𐑿𐊦𐑿𐋉 𐊯𐋎𐑿𐋉𐊤'
+g7  = '𐊥𐊦𐌱Θ𐑿𐋎𐊢𐊢𐊦 𐑖𐊤𐌱𐊤𐑖Ⴝ'
+g8  = 'ΘϷ𐨝𐊦Θ𐑿Ⴝ'
+g10 = 'ΘႽ𐊢𐊦𐑖𐑖𐋎𐨝Θ𐊯 𐊰Θᱚ𐊤'
+g11 = '𐊢𐋎𐑿ᱚ𐑖𐊤'
+
+///////////////
+// Defined
+///////////////
+show = true
+pips = syminfo.mintick * 10
+max_bars = 500
+
+option_yes = 'Yes'
+option_no = '× No'
+option_extend1 = 'Extend'
+option_hide = '× Hide'
+
+fmt_price = '{0,number,#.#####}'
+fmt_pips  = '{0,number,#.#}'
+
+icon_separator = ' • '
+
+c_none = color.new(color.black, 100)
+
+is_weekends = dayofweek == 7 or dayofweek == 1
+
+///////////////
+// Functions
+///////////////
+f_get_time_by_bar(bar_count) => timeframe.multiplier * bar_count * 60 * 1000
+
+f_get_period (_session, _start, _lookback) =>
+    result = math.max(_start, 1)
+    for i = result to _lookback
+        if na(_session[i+1]) and _session[i]
+            result := i+1
+            break
+    result
+
+f_get_label_position (_y, _side) =>
+    switch _y
+        'top'    => _side == 'outside' ? label.style_label_lower_left : label.style_label_upper_left
+        'bottom' => _side == 'outside' ? label.style_label_upper_left : label.style_label_lower_left
+
+f_get_day (n) =>
+    switch n
+        1 => 'Sun'
+        2 => 'Mon'
+        3 => 'Tue'
+        4 => 'Wed'
+        5 => 'Thu'
+        6 => 'Fri'
+        7 => 'Sat'
+
+f_get_started (_session) => na(_session[1]) and _session
+
+f_get_ended (_session) => na(_session) and _session[1]
+
+///////////////
+// Inputs
+///////////////
+// Timezone
+i_tz = input.string('GMT+1', title='Timezone', options=['GMT-11', 'GMT-10', 'GMT-9', 'GMT-8', 'GMT-7', 'GMT-6', 'GMT-5', 'GMT-4', 'GMT-3', 'GMT-2', 'GMT-1', 'GMT', 'GMT+1', 'GMT+2', 'GMT+3', 'GMT+4', 'GMT+5', 'GMT+6', 'GMT+7', 'GMT+8', 'GMT+9', 'GMT+10', 'GMT+11', 'GMT+12'], tooltip='e.g. \'America/New_York\', \'Asia/Tokyo\', \'GMT-4\', \'GMT+9\'...', group=g0)
+i_show_history = input.string(option_yes, 'History', options=[option_yes, option_no], group=g0) == option_yes
+i_lookback = 12 * 60
+
+// Sessions
+i_show_sess1 = input.bool(true, 'Session 1: ', group=g1, inline='session1_1') and show
+i_sess1_label = input.string('London', ' ', group=g1, inline='session1_1')
+i_sess1_color = input.color(#66D9EF, ' ', group=g1, inline='session1_1')
+i_sess1 = input.session('0800-1700', 'Time', group=g1)
+i_sess1_extend = input.string(option_no, option_extend1, options=[option_no, option_extend1], group=g1)
+i_sess1_fib = input.string(option_no, 'Fibonacci levels', group=g1, options=[option_yes, option_no]) != option_no
+i_sess1_op = input.string(option_no, 'Opening range', group=g1, options=[option_yes, option_no]) != option_no and show
+
+i_show_sess2 = input.bool(true, 'Session 2: ', group=g2, inline='session2_1') and show
+i_sess2_label = input.string('New York', ' ', group=g2, inline='session2_1')
+i_sess2_color = input.color(#FD971F, ' ', group=g2, inline='session2_1')
+i_sess2 = input.session('1300-2200', 'Time', group=g2)
+i_sess2_extend = input.string(option_no, option_extend1, options=[option_no, option_extend1], group=g2)
+i_sess2_fib = input.string(option_no, 'Fibonacci levels', group=g2, options=[option_yes, option_no]) != option_no
+i_sess2_op = input.string(option_no, 'Opening range', group=g2, options=[option_yes, option_no]) != option_no and show
+
+i_show_sess3 = input.bool(true, 'Session 3: ', group=g3, inline='session3_1') and show
+i_sess3_label = input.string('Tokyo', ' ', group=g3, inline='session3_1')
+i_sess3_color = input.color(#AE81FF, ' ', group=g3, inline='session3_1')
+i_sess3 = input.session('0100-1000', 'Time', group=g3)
+i_sess3_extend = input.string(option_no, option_extend1, options=[option_no, option_extend1], group=g3)
+i_sess3_fib = input.string(option_no, 'Fibonacci levels', group=g3, options=[option_yes, option_no]) != option_no
+i_sess3_op = input.string(option_no, 'Opening range', group=g3, options=[option_yes, option_no]) != option_no and show
+
+// Show & Styles
+i_sess_border_style = input.string(line.style_dashed, 'Style', options=[line.style_solid, line.style_dotted, line.style_dashed], group=g4)
+i_sess_border_width = input.int(1, 'Thickness', minval=0, group=g4)
+i_sess_bgopacity = input.int(94, 'Transp', minval=0, maxval=100, step=1, group=g4, tooltip='Setting the 100 is no background color')
+
+// Candle
+option_candle_body = 'Show (Body only)'
+option_candle_wick = 'Show'
+i_candle = input.string(option_hide, 'Display', options=[option_candle_wick, option_candle_body, option_hide], group=g11)
+i_show_candle      = i_candle != option_hide
+i_show_candle_wick = i_candle == option_candle_wick
+i_candle_border_width = input.int(2, 'Thickness', minval=0, group=g11)
+option_candle_color1 = 'Session\'s'
+option_candle_color2 = 'Red/Green'
+i_candle_color = input.string(option_candle_color2, 'Candle color', options=[option_candle_color1, option_candle_color2], group=g11, inline='candle_color')
+i_candle_color_g = input.color(#A6E22E, '', group=g11, inline='candle_color')
+i_candle_color_r = input.color(#F92672, '', group=g11, inline='candle_color')
+
+// Labels
+i_label_show = input.bool(true, 'Show labels', inline='label_show', group=g6) and show
+i_label_size = str.lower(input.string('Small', '', options=['Auto', 'Tiny', 'Small', 'Normal', 'Large', 'Huge'], inline='label_show', group=g6))
+i_label_position_y = str.lower(input.string('Top', '', options=['Top', 'Bottom'], inline='label_show', group=g6))
+i_label_position_s = str.lower(input.string('Outside', '', options=['Inside', 'Outside'], inline='label_show', group=g6))
+i_label_position = f_get_label_position(i_label_position_y, i_label_position_s)
+i_label_format_name = input.bool(true, 'Name', inline='label_format', group=g6)
+i_label_format_day = input.bool(false, 'Day', inline='label_format', group=g6)
+i_label_format_price = input.bool(false, 'Price', inline='label_format', group=g6)
+i_label_format_pips = input.bool(false, 'Pips', inline='label_format', group=g6)
+
+// Fibonacci levels
+i_f_linestyle = input.string(line.style_solid, title="Style", options=[line.style_solid, line.style_dotted, line.style_dashed], group=g7)
+i_f_linewidth = input.int(1, title="Thickness", minval=1, group=g7)
+
+// Opening range
+i_o_minutes = input.int(15, title='Periods (minutes)', minval=1, step=1, group=g5)
+i_o_minutes := math.max(i_o_minutes, timeframe.multiplier + 1)
+i_o_transp = input.int(88, title='Transp', minval=0, maxval=100, step=1, group=g5)
+
+// Oscillator mode
+i_osc = input.bool(false, 'Oscillator', inline='osc', group=g10)
+i_osc_min = input.float(0, '', inline='osc', group=g10)
+i_osc_max = input.float(100, '-', inline='osc', group=g10)
+
+// Alerts
+i_alert1_show = input.bool(false, 'Alerts - Sessions stard/end', group='Alerts visualized')
+i_alert2_show = input.bool(false, 'Alerts - Opening range breakouts', group='Alerts visualized')
+i_alert3_show = input.bool(false, 'Alerts - Price crossed session\'s High/Low after session closed', group='Alerts visualized')
+
+// ------------------------
+// Drawing labels
+// ------------------------
+f_render_label (_show, _session, _is_started, _color, _top, _bottom, _text, _delete_history) =>
+    var label my_label = na
+    var int start_time = na
+
+    v_position_y = (i_label_position_y == 'top') ? _top : _bottom
+    v_label = array.new_string()
+    v_chg = _top - _bottom
+    
+    if _is_started
+        start_time := time
+    
+    if i_label_format_name and not na(_text)
+        array.push(v_label, _text)
+
+    if i_label_format_day
+        array.push(v_label, f_get_day(dayofweek(start_time, i_tz)))
+
+    if i_label_format_price
+        array.push(v_label, str.format(fmt_price, v_chg))
+    
+    if i_label_format_pips
+        array.push(v_label, str.format(fmt_pips, v_chg / pips) + ' pips')
+
+    if _show
+        if _is_started
+            my_label := label.new(time, v_position_y, array.join(v_label, icon_separator), textcolor=_color, color=c_none, size=i_label_size, style=i_label_position, xloc=xloc.bar_time)
+            
+            if _delete_history
+                label.delete(my_label[1])
+
+        if _session
+            label.set_y(my_label, v_position_y)
+            label.set_text(my_label, array.join(v_label, icon_separator))
+
+// ------------------------
+// Drawing Fibonacci levels
+// ------------------------
+f_render_fibonacci (_show, _session, _is_started, _x1, _x2, _color, _top, _bottom, _level, _width, _style, _is_extend, _delete_history) =>
+    var line my_line = na
+
+    if _show
+        y = (_top - _bottom) * _level + _bottom
+
+        if _is_started
+            my_line := line.new(_x1, y, _x2, y, width=_width, color=color.new(_color, 30), style=_style)
+
+            if _is_extend
+                line.set_extend(my_line, extend.right)
+
+            if _delete_history
+                line.delete(my_line[1])
+
+        if _session
+            line.set_y1(my_line, y)
+            line.set_y2(my_line, y)
+
+
+// ------------------------
+// Drawing Opening range
+// ------------------------
+f_render_oprange (_show, _session, _is_started, _x1, _x2, _color, _max, _is_extend, _delete_history) =>
+    var int start_time = na
+    var box my_box = na
+    top = ta.highest(high, _max)
+    bottom = ta.lowest(low, _max)
+    is_crossover = ta.crossover(close, box.get_top(my_box))
+    is_crossunder = ta.crossunder(close, box.get_bottom(my_box))
+    
+    if _show
+        if _is_started
+            start_time := time
+            my_box := na
+
+            if _delete_history
+                box.delete(my_box[1])
+
+        if _session
+            time_op = start_time + (i_o_minutes * 60 * 1000)
+            time_op_delay = time_op - f_get_time_by_bar(1)
+            
+            if time <= time_op and time > time_op_delay
+                my_box := box.new(_x1, top, _x2, bottom, border_width=0, bgcolor=color.new(_color, i_o_transp))
+
+                if _is_extend
+                    box.set_extend(my_box, extend.right)
+                    my_box
+
+            else
+                //box.set_right(my_box, bar_index + 1)
+
+                if is_crossover
+                    alert('Price crossed over the opening range', alert.freq_once_per_bar)
+
+                    if i_alert2_show
+                        label.new(bar_index, box.get_top(my_box), "×", color=color.blue, textcolor=ac.tradingview('blue'), style=label.style_none, size=size.large)
+
+                if is_crossunder
+                    alert('Price crossed under the opening range', alert.freq_once_per_bar)
+
+                    if i_alert2_show
+                        label.new(bar_index, box.get_bottom(my_box), "×", color=color.red, textcolor=ac.tradingview('red'), style=label.style_none, size=size.large)
+
+                my_box
+
+
+// ------------------------
+// Drawing candle
+// ------------------------
+f_render_candle (_show, _session, _is_started, _is_ended, _color, _top, _bottom, _open, _x1, _x2, _delete_history) =>
+    var box body = na
+    var line wick1 = na
+    var line wick2 = na
+    border_width = i_candle_border_width
+    cx = math.round(math.avg(_x2, _x1)) - math.round(border_width / 2)
+    
+    body_color = i_candle_color == option_candle_color2 ? close > _open ? i_candle_color_g : i_candle_color_r : _color
+    
+    if _show
+        if _is_started
+            body := box.new(_x1, _top, _x2, _bottom, body_color, border_width, line.style_solid, bgcolor=color.new(color.black, 100))
+            wick1 := i_show_candle_wick ? line.new(cx, _top, cx, _top, color=_color, width=border_width, style=line.style_solid) : na
+            wick2 := i_show_candle_wick ? line.new(cx, _bottom, cx, _bottom, color=_color, width=border_width, style=line.style_solid) : na
+
+            if _delete_history
+                box.delete(body[1])
+                line.delete(wick1[1])
+                line.delete(wick2[1])
+
+        else if _session
+            top    = math.max(_open, close)
+            bottom = math.min(_open, close)
+
+            box.set_top(body, top)
+            box.set_bottom(body, bottom)
+            box.set_border_color(body, body_color)
+            
+            line.set_y1(wick1, _top)
+            line.set_y2(wick1, top)
+            line.set_color(wick1, body_color)
+            line.set_y1(wick2, _bottom)
+            line.set_y2(wick2, bottom)
+            line.set_color(wick2, body_color)
+
+        else if _is_ended
+            box.set_right(body, bar_index)
+        
+
+// ------------------------
+// Drawing market
+// ------------------------
+f_render_session (_show, _session, _is_started, _is_ended, _color, _top, _bottom, _extend, _is_extend, _delete_history) =>
+    var box my_box = na
+
+    x0_1 = ta.valuewhen(na(_session[1]) and _session, bar_index, 1)
+    x0_2 = ta.valuewhen(na(_session) and _session[1], bar_index, 0)
+    var x1 = 0
+    var x2 = 0
+    var session_open  = 0.0
+    var session_high  = 0.0
+    var session_low   = 0.0
+
+    if _show
+        if _is_started
+            diff = math.abs(x0_2 - x0_1)
+            x1 := bar_index
+            x2 := bar_index + (math.min(diff, max_bars))
+            my_box := box.new(x1, _top, x2, _bottom, _color, i_sess_border_width, i_sess_border_style, bgcolor=color.new(_color, i_sess_bgopacity))
+
+            session_open := open
+            session_high := _top
+            session_low  := _bottom
+
+            if _is_extend
+                box.set_extend(my_box, extend.right)
+
+            if _delete_history
+                box.delete(my_box[1])
+
+        else if _session
+            box.set_top(my_box, _top)
+            box.set_bottom(my_box, _bottom)
+
+            session_high := _top
+            session_low  := _bottom
+        
+        else if _is_ended
+            session_open := na
+            box.set_right(my_box, bar_index)
+
+    [x1, x2, session_open, session_high, session_low]
+
+// ------------------------
+// Drawing
+// ------------------------
+draw (_show, _session, _color, _label, _extend, _show_fib, _show_op, _lookback) =>
+    max = f_get_period(_session, 1, _lookback)
+    top = ta.highest(high, max)
+    bottom = ta.lowest(low, max)
+    
+    if i_osc
+        top     := i_osc_max
+        bottom  := i_osc_min
+    
+    is_started = f_get_started(_session)
+    is_ended = f_get_ended(_session)
+    is_extend = _extend != option_no
+
+    delete_history = (not i_show_history) or is_extend
+
+    [x1, x2, _open, _high, _low] = f_render_session(_show, _session, is_started, is_ended, _color, top, bottom, _extend, is_extend, delete_history)
+
+    if i_show_candle
+        f_render_candle(_show, _session, is_started, is_ended, _color, top, bottom, _open, x1, x2, delete_history)
+
+    if i_label_show
+        f_render_label(_show, _session, is_started, _color, top, bottom, _label, delete_history)
+
+    if _show_op
+        f_render_oprange(_show, _session, is_started, x1, x2, _color, max, is_extend, delete_history)
+
+    if _show_fib
+        f_render_fibonacci(_show, _session, is_started, x1, x2, _color, top, bottom, 0.500, 2, line.style_solid, is_extend, delete_history)
+        f_render_fibonacci(_show, _session, is_started, x1, x2, _color, top, bottom, 0.628, i_f_linewidth, i_f_linestyle, is_extend, delete_history)
+        f_render_fibonacci(_show, _session, is_started, x1, x2, _color, top, bottom, 0.382, i_f_linewidth, i_f_linestyle, is_extend, delete_history)
+
+    [_session, _open, _high, _low]
+
+///////////////////
+// Calculating
+///////////////////
+string tz = (i_tz == option_no or i_tz == '') ? na : i_tz
+int sess1 = time(timeframe.period, i_sess1, tz)
+int sess2 = time(timeframe.period, i_sess2, tz)
+int sess3 = time(timeframe.period, i_sess3, tz)
+
+///////////////////
+// Plotting
+///////////////////
+[is_sess1, sess1_open, sess1_high, sess1_low] = draw(i_show_sess1, sess1, i_sess1_color, i_sess1_label, i_sess1_extend, i_sess1_fib, i_sess1_op, i_lookback)
+[is_sess2, sess2_open, sess2_high, sess2_low] = draw(i_show_sess2, sess2, i_sess2_color, i_sess2_label, i_sess2_extend, i_sess2_fib, i_sess2_op, i_lookback)
+[is_sess3, sess3_open, sess3_high, sess3_low] = draw(i_show_sess3, sess3, i_sess3_color, i_sess3_label, i_sess3_extend, i_sess3_fib, i_sess3_op, i_lookback)
+
+
+////////////////////
+// Alerts
+////////////////////
+// Session alerts
+bool sess1_started = is_sess1 and not is_sess1[1]
+bool sess1_ended = not is_sess1 and is_sess1[1]
+bool sess2_started = is_sess2 and not is_sess2[1]
+bool sess2_ended = not is_sess2 and is_sess2[1]
+bool sess3_started = is_sess3 and not is_sess3[1]
+bool sess3_ended = not is_sess3 and is_sess3[1]
+
+alertcondition(sess1_started,   'Session #1 started')
+alertcondition(sess1_ended,     'Session #1 ended')
+alertcondition(sess2_started,   'Session #2 started')
+alertcondition(sess2_ended,     'Session #2 ended')
+alertcondition(sess3_started,   'Session #3 started')
+alertcondition(sess3_ended,     'Session #3 ended')
+
+alertcondition((not is_sess1) and ta.crossover(close, sess1_high), 'Session #1 High crossed (after session closed)')
+alertcondition((not is_sess1) and ta.crossunder(close, sess1_low), 'Session #1 Low crossed (after session closed)')
+alertcondition((not is_sess2) and ta.crossover(close, sess2_high), 'Session #2 High crossed (after session closed)')
+alertcondition((not is_sess2) and ta.crossunder(close, sess2_low), 'Session #2 Low crossed (after session closed)')
+alertcondition((not is_sess3) and ta.crossover(close, sess3_high), 'Session #3 High crossed (after session closed)')
+alertcondition((not is_sess3) and ta.crossunder(close, sess3_low), 'Session #3 Low crossed (after session closed)')
+
+plotshape(i_alert1_show and sess1_started, color=i_sess1_color, text='Start', style=shape.labeldown, location=location.bottom, size=size.small, textcolor=color.new(color.white, 0))
+plotshape(i_alert1_show and sess1_ended, color=i_sess1_color, text='End', style=shape.labeldown, location=location.bottom, size=size.small, textcolor=color.new(color.white, 0))
+plotshape(i_alert1_show and sess2_started, color=i_sess2_color, text='Start', style=shape.labeldown, location=location.bottom, size=size.small, textcolor=color.new(color.white, 0))
+plotshape(i_alert1_show and sess2_ended, color=i_sess2_color, text='End', style=shape.labeldown, location=location.bottom, size=size.small, textcolor=color.new(color.white, 0))
+plotshape(i_alert1_show and sess3_started, color=i_sess3_color, text='Start', style=shape.labeldown, location=location.bottom, size=size.small, textcolor=color.new(color.white, 0))
+plotshape(i_alert1_show and sess3_ended, color=i_sess3_color, text='End', style=shape.labeldown, location=location.bottom, size=size.small, textcolor=color.new(color.white, 0))
+
+plot(i_alert3_show ? sess1_high : na, style=plot.style_linebr, color=i_sess1_color)
+plot(i_alert3_show ? sess1_low : na, style=plot.style_linebr, linewidth=2, color=i_sess1_color)
+plot(i_alert3_show ? sess2_high : na, style=plot.style_linebr, color=i_sess2_color)
+plot(i_alert3_show ? sess2_low : na, style=plot.style_linebr, linewidth=2, color=i_sess2_color)
+plot(i_alert3_show ? sess3_high : na, style=plot.style_linebr, color=i_sess3_color)
+plot(i_alert3_show ? sess3_low : na, style=plot.style_linebr, linewidth=2, color=i_sess3_color)
+
+plotshape(i_alert3_show and (not is_sess1) and ta.crossover(close, sess1_high), color=i_sess1_color, title="", style=shape.triangleup, location=location.bottom, size=size.tiny)
+plotshape(i_alert3_show and (not is_sess1) and ta.crossunder(close, sess1_low), color=i_sess1_color, title="", style=shape.triangledown, location=location.bottom, size=size.tiny)
+plotshape(i_alert3_show and (not is_sess2) and ta.crossover(close, sess2_high), color=i_sess2_color, title="", style=shape.triangleup, location=location.bottom, size=size.tiny)
+plotshape(i_alert3_show and (not is_sess2) and ta.crossunder(close, sess2_low), color=i_sess2_color, title="", style=shape.triangledown, location=location.bottom, size=size.tiny)
+plotshape(i_alert3_show and (not is_sess3) and ta.crossover(close, sess3_high), color=i_sess3_color, title="", style=shape.triangleup, location=location.bottom, size=size.tiny)
+plotshape(i_alert3_show and (not is_sess3) and ta.crossunder(close, sess3_low), color=i_sess3_color, title="", style=shape.triangledown, location=location.bottom, size=size.tiny)
